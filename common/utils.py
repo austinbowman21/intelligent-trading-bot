@@ -17,6 +17,88 @@ from apscheduler.triggers.cron import CronTrigger
 from common.gen_features import *
 
 #
+# Order book depth processing
+#
+
+def discretize(side: str, depth: list, bin_size: float, start: float):
+    """Convert order-book depth into average-volume price bins."""
+
+    if not depth:
+        return []
+
+    if bin_size <= 0:
+        raise ValueError("bin_size must be positive.")
+
+    if side.startswith("ask") or side.startswith("sell"):
+        price_increase = True
+    elif side in ["bid", "buy"]:
+        price_increase = False
+    else:
+        raise ValueError("Side must be bid, ask, buy, or sell.")
+
+    if start is None:
+        start = depth[0][0]
+
+    bin_count = int(abs(depth[-1][0] - start) // bin_size) + 1
+
+    bin_volumes = []
+
+    for b in range(bin_count):
+        bin_start = start + b * bin_size if price_increase else start - b * bin_size
+        bin_end = bin_start + bin_size if price_increase else bin_start - bin_size
+
+        if price_increase:
+            bin_point_ids = [
+                i for i, x in enumerate(depth)
+                if bin_start <= x[0] < bin_end
+            ]
+        else:
+            bin_point_ids = [
+                i for i, x in enumerate(depth)
+                if bin_end < x[0] <= bin_start
+            ]
+
+        if bin_point_ids:
+            first_point_id = min(bin_point_ids)
+            last_point_id = max(bin_point_ids)
+            prev_point = depth[first_point_id - 1] if first_point_id >= 1 else None
+        else:
+            first_point_id = None
+            last_point_id = None
+            prev_point = None
+
+        prev_price = bin_start
+        prev_volume = prev_point[1] if prev_point else 0.0
+        bin_volume = 0.0
+
+        if first_point_id is None:
+            price_delta = abs(bin_end - prev_price)
+            bin_volume += prev_volume * price_delta / bin_size
+            bin_volumes.append(bin_volume)
+            continue
+
+        for point_id in range(first_point_id, last_point_id + 1):
+            point = depth[point_id]
+
+            price_delta = abs(point[0] - prev_price)
+            bin_volume += prev_volume * price_delta / bin_size
+
+            prev_price = point[0]
+            prev_volume = point[1]
+
+        price_delta = abs(bin_end - prev_price)
+        bin_volume += prev_volume * price_delta / bin_size
+
+        bin_volumes.append(bin_volume)
+
+    return bin_volumes
+
+
+def discretize_ask(depth: list, bin_size: float, start: float):
+    """Compatibility wrapper for older ask-side code."""
+    return discretize("ask", depth, bin_size, start)
+
+#
 # Decimals
 #
 

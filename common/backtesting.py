@@ -1,117 +1,159 @@
+
 import numpy as np
 import pandas as pd
 
 """
-Backtesting and trade performance using trade simulation
+Backtesting and trade performance using trade simulation.
 """
 
-def simulated_trade_performance(df, buy_signal_column, sell_signal_column, price_column):
-    """
-    The function simulates trades over the time by buying and selling the asset
-    according to the specified buy/sell signals and price. Essentially, it assumes
-    the existence of some initial amount, then it moves forward in time by finding
-    next buy/sell signal and accordingly buying/selling the asset using the current
-    price. At the end, it finds how much it earned by comparing with the initial amount.
 
-    It returns short and long performance as a number of metrics collected during
-    one simulation pass.
+def simulated_trade_performance(
+    df,
+    buy_signal_column,
+    sell_signal_column,
+    price_column,
+    direction="both",
+    fee_rate=0.0,
+    slippage_rate=0.0,
+):
     """
-    is_buy_mode = True
+    Simulate long, short, or both types of trades.
 
-    long_profit = 0
-    long_profit_percent = 0
+    Fees and slippage are decimal rates applied to each execution.
+    Only completed trades are included in performance statistics.
+    """
+
+    if direction not in ("long", "short", "both"):
+        raise ValueError("direction must be 'long', 'short', or 'both'.")
+
+    for name, rate in (
+        ("fee_rate", fee_rate),
+        ("slippage_rate", slippage_rate),
+    ):
+        if not np.isfinite(rate) or rate < 0 or rate >= 1:
+            raise ValueError(f"{name} must be between 0 and 1.")
+
+    position = None
+    entry_price = None
+
+    long_profit = 0.0
+    long_profit_percent = 0.0
     long_transactions = 0
     long_profitable = 0
-    longs = list()  # Where we buy
 
-    short_profit = 0
-    short_profit_percent = 0
+    short_profit = 0.0
+    short_profit_percent = 0.0
     short_transactions = 0
     short_profitable = 0
-    shorts = list()  # Where we sell
 
-    # The order of columns is important for itertuples
-    df = df[[sell_signal_column, buy_signal_column, price_column]]
-    for (index, sell_signal, buy_signal, price) in df.itertuples(name=None):
-        if not price or pd.isnull(price):
+    columns = [buy_signal_column, sell_signal_column, price_column]
+
+    for buy_signal, sell_signal, price in df[columns].itertuples(
+        index=False, name=None
+    ):
+        if pd.isna(price):
             continue
-        if is_buy_mode:
-            # Check if minimum price
-            if buy_signal:
-                previous_price = shorts[-1][2] if len(shorts) > 0 else 0.0
-                profit = (previous_price - price) if previous_price > 0 else 0.0
-                profit_percent = 100.0 * profit / previous_price if previous_price > 0 else 0.0
-                short_profit += profit
-                short_profit_percent += profit_percent
-                short_transactions += 1
-                if profit > 0:
-                    short_profitable += 1
-                shorts.append((index, previous_price, price, profit, profit_percent))  # Bought
-                is_buy_mode = False
-        else:
-            # Check if maximum price
-            if sell_signal:
-                previous_price = longs[-1][2] if len(longs) > 0 else 0.0
-                profit = (price - previous_price) if previous_price > 0 else 0.0
-                profit_percent = 100.0 * profit / previous_price if previous_price > 0 else 0.0
-                long_profit += profit
-                long_profit_percent += profit_percent
-                long_transactions += 1
-                if profit > 0:
-                    long_profitable += 1
-                longs.append((index, previous_price, price, profit, profit_percent))  # Sold
-                is_buy_mode = True
 
-    # Performance of buy at low price and sell at high price
-    long_performance = {
-        "#transactions": long_transactions,
-        "profit": round(long_profit, 2),
-        "%profit": round(long_profit_percent, 1),
+        try:
+            price = float(price)
+        except (TypeError, ValueError):
+            continue
 
-        "#profitable": long_profitable,
-        "%profitable": round(100.0 * long_profitable / long_transactions, 1) if long_transactions else 0.0,
+        if not np.isfinite(price) or price <= 0:
+            continue
 
-        "profit/T": round(long_profit / long_transactions, 2) if long_transactions else 0.0,
-        "%profit/T": round(long_profit_percent / long_transactions, 1) if long_transactions else 0.0,
+        buy_signal = bool(buy_signal) if pd.notna(buy_signal) else False
+        sell_signal = bool(sell_signal) if pd.notna(sell_signal) else False
 
-        #"transactions": longs,  # Sell transactions
-    }
+        if buy_signal and sell_signal:
+            continue
 
-    # Performance of sell at high price and buy at low price
-    short_performance = {
-        "#transactions": short_transactions,
-        "profit": round(short_profit, 2),
-        "%profit": round(short_profit_percent, 1),
+        if position is None:
+            if buy_signal and direction in ("long", "both"):
+                position = "long"
+                entry_price = price * (1 + slippage_rate)
 
-        "#profitable": short_profitable,
-        "%profitable": round(100.0 * short_profitable / short_transactions, 1) if short_transactions else 0.0,
+            elif sell_signal and direction in ("short", "both"):
+                position = "short"
+                entry_price = price * (1 - slippage_rate)
 
-        "profit/T": round(short_profit / short_transactions, 2) if short_transactions else 0.0,
-        "%profit/T": round(short_profit_percent / short_transactions, 1) if short_transactions else 0.0,
+        elif position == "long" and sell_signal:
+            exit_price = price * (1 - slippage_rate)
 
-        #"transactions": shorts,  # Buy transactions
-    }
+            gross_profit = exit_price - entry_price
+            fees = fee_rate * (entry_price + exit_price)
+            profit = gross_profit - fees
+            profit_percent = 100.0 * profit / entry_price
 
-    profit = long_profit + short_profit
-    profit_percent = long_profit_percent + short_profit_percent
-    transaction_no = long_transactions + short_transactions
-    profitable = (long_profitable + short_profitable) / transaction_no if transaction_no else 0.0
-    #minutes_in_month = 1440 * 30.5
-    performance = {
-        "#transactions": transaction_no,
-        "profit": profit,
-        "%profit": profit_percent,
+            long_profit += profit
+            long_profit_percent += profit_percent
+            long_transactions += 1
 
-        "profitable": profitable,
-        "profitable_percent": round(100.0 * profitable / transaction_no, 1) if transaction_no else 0.0,
+            if profit > 0:
+                long_profitable += 1
 
-        "profit/T": round(profit / transaction_no, 2) if transaction_no else 0.0,
-        "%profit/T": round(profit_percent / transaction_no, 1) if transaction_no else 0.0,
+            position = None
+            entry_price = None
 
-        #"transactions": transactions,
+        elif position == "short" and buy_signal:
+            exit_price = price * (1 + slippage_rate)
 
-        #"profit_per_month": profit / (len(df) / minutes_in_month),
-        #"transactions_per_month": transaction_no / (len(df) / minutes_in_month),
-    }
+            gross_profit = entry_price - exit_price
+            fees = fee_rate * (entry_price + exit_price)
+            profit = gross_profit - fees
+            profit_percent = 100.0 * profit / entry_price
+
+            short_profit += profit
+            short_profit_percent += profit_percent
+            short_transactions += 1
+
+            if profit > 0:
+                short_profitable += 1
+
+            position = None
+            entry_price = None
+
+    def make_performance(profit, profit_percent, transactions, profitable):
+        return {
+            "#transactions": transactions,
+            "profit": round(profit, 2),
+            "%profit": round(profit_percent, 1),
+            "#profitable": profitable,
+            "%profitable": round(
+                100.0 * profitable / transactions, 1
+            ) if transactions else 0.0,
+            "profit/T": round(
+                profit / transactions, 2
+            ) if transactions else 0.0,
+            "%profit/T": round(
+                profit_percent / transactions, 1
+            ) if transactions else 0.0,
+        }
+
+    long_performance = make_performance(
+        long_profit, long_profit_percent, long_transactions, long_profitable
+    )
+
+    short_performance = make_performance(
+        short_profit, short_profit_percent, short_transactions, short_profitable
+    )
+
+    total_transactions = long_transactions + short_transactions
+    total_profitable = long_profitable + short_profitable
+
+    performance = make_performance(
+        long_profit + short_profit,
+        long_profit_percent + short_profit_percent,
+        total_transactions,
+        total_profitable,
+    )
+
+    performance["profitable"] = (
+        total_profitable / total_transactions
+        if total_transactions else 0.0
+    )
+    performance["profitable_percent"] = round(
+        100.0 * performance["profitable"], 1
+    )
 
     return performance, long_performance, short_performance

@@ -17,6 +17,30 @@ given parameters, and 2) finding optimal parameters of rules (currently via grid
 """
 
 
+def aggregate_scores(df, score_column_out: str, score_columns, point_threshold, window):
+    """Aggregate score columns and optionally smooth the result."""
+
+    if isinstance(score_columns, str):
+        score_columns = [score_columns]
+
+    score_column = df[score_columns].mean(skipna=True, axis=1)
+
+    if point_threshold:
+        score_column = score_column >= point_threshold
+
+    if isinstance(window, int):
+        score_column = score_column.rolling(
+            window, min_periods=max(1, window // 2)
+        ).mean()
+    elif isinstance(window, float):
+        score_column = score_column.ewm(
+            span=window, min_periods=max(1, int(window // 2)), adjust=False
+        ).mean()
+
+    df[score_column_out] = score_column
+
+    return score_column
+
 def generate_smoothen_scores(df, config: dict):
     """
     Smoothen several columns and rows. Used for smoothing scores.

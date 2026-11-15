@@ -1,0 +1,4 @@
+{
+  "old_text": "        if df is None:\n            df = df_new\n        else:\n            df = pd.concat([df, df_new])\n\n            # Drop duplicates\n            df = df.drop_duplicates(subset=[\"timestamp\"], keep=\"last\")\n            # df = df[~df.index.duplicated(keep='last')]  # alternatively, drop duplicates in index",
+  "new_text": "        if df is None:\n            df = df_new\n        else:\n            df = pd.concat([df, df_new])\n\n        # Count duplicate timestamps before removing them\n        duplicate_count = df.duplicated(subset=[\"timestamp\"]).sum()\n\n        if duplicate_count:\n            print(f\"WARNING: Found {duplicate_count} duplicate timestamps for {quote}.\")\n\n        # Remove duplicates, keeping the latest record\n        df = df.drop_duplicates(subset=[\"timestamp\"], keep=\"last\")"
+}

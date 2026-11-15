@@ -1,0 +1,4 @@
+{
+  "old_text": "        # Sort candles chronologically, oldest to newest\n        df = df.sort_values(\"timestamp\").reset_index(drop=True)\n\n        # Sort candles chronologically, oldest to newest\n        df = df.sort_values(\"timestamp\").reset_index(drop=True)",
+  "new_text": "        # Sort candles chronologically, oldest to newest\n        df = df.sort_values(\"timestamp\").reset_index(drop=True)"
+}

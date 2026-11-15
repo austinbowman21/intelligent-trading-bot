@@ -149,7 +149,7 @@ def add_area_ratio(df, is_future: bool, column_name: str, windows: Union[int, Li
     features = []
     for w in windows:
         if not last_rows:
-            ro = column.rolling(window=w, min_periods=max(1, w // 2))
+            ro = column.rolling(window=w, min_periods=1)
             feature = ro.apply(area_fn, kwargs=dict(is_future=is_future), raw=True)
         else:  # Only for last row
             feature = _aggregate_last_rows(column, w, last_rows, area_fn, is_future)
@@ -199,7 +199,7 @@ def add_linear_trends(df, is_future: bool, column_name: str, windows: Union[int,
     features = []
     for w in windows:
         if not last_rows:
-            ro = column.rolling(window=w, min_periods=max(1, w // 2))
+            ro = column.rolling(window=w, min_periods=1)
             feature = ro.apply(slope_fn, raw=True)
         else:  # Only for last row
             feature = _aggregate_last_rows(column, w, last_rows, slope_fn)
@@ -223,15 +223,19 @@ def slope_fn(x):
     """
     X_array = np.asarray(range(len(x)))
     y_array = x
+
     if np.isnan(y_array).any():
         nans = ~np.isnan(y_array)
         X_array = X_array[nans]
         y_array = y_array[nans]
 
-    #X_array = X_array.reshape(-1, 1)  # Make matrix
-    #model = linear_model.LinearRegression()
-    #model.fit(X_array, y_array)
-    # slope = model.coef_[0]
+    # One data point has no measurable trend, so return zero.
+    if len(y_array) == 1:
+        return 0.0
+
+    # No valid data points.
+    if len(y_array) == 0:
+        return np.nan
 
     slope, intercept, r, p, se = stats.linregress(X_array, y_array)
 

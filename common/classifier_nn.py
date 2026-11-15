@@ -48,7 +48,7 @@ def train_nn(df_X, df_y, model_config: dict):
     n_features = X_train.shape[1]
     layers = params.get("layers")  # List of ints
     if not layers:
-        layers = [n_features // 4]  # Default
+         layers = [max(1, n_features // 4)]  # Default
     if not isinstance(layers, list):
         layers = [layers]
 
@@ -60,9 +60,10 @@ def train_nn(df_X, df_y, model_config: dict):
     reg_l2 = 0.001
 
     train_conf = model_config.get("train", {})
-    learning_rate = train_conf.get("learning_rate")
-    n_epochs = train_conf.get("n_epochs")
-    batch_size = train_conf.get("bs")
+    learning_rate = train_conf.get("learning_rate", model_config.get("learning_rate", 0.001))
+    n_epochs = train_conf.get("n_epochs", model_config.get("n_epochs", 10))
+    batch_size = train_conf.get("bs", model_config.get("bs", 32))
+
 
     for i, out_features in enumerate(layers):
         in_features = n_features if i == 0 else layers[i-1]

@@ -158,11 +158,12 @@ def main(config_file):
 
         # Perform backtesting
         performance, long_performance, short_performance = simulated_trade_performance(
-            df,
-            buy_signal_column, sell_signal_column,
-            'close'
-        )
-
+        df,
+        buy_signal_column,
+        sell_signal_column,
+        'close',
+        direction=direction
+)
         if direction == "long":
             performance = long_performance
         elif direction == "short":

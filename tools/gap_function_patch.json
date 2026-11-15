@@ -1,0 +1,4 @@
+{
+  "old_text": "def download_klines(config, data_sources):",
+  "new_text": "def find_candle_gaps(timestamps, pandas_freq):\n    \"\"\"Return gaps larger than the expected candle interval.\"\"\"\n    expected_delta = freq_to_timedelta(pandas_freq)\n\n    if expected_delta <= timedelta(0):\n        raise ValueError(\"Expected candle duration must be positive.\")\n\n    timestamps = pd.Series(timestamps).reset_index(drop=True)\n    gaps = []\n\n    for previous, current in zip(timestamps.iloc[:-1], timestamps.iloc[1:]):\n        actual_gap = current - previous\n\n        if actual_gap > expected_delta:\n            gaps.append((previous, current, actual_gap))\n\n    return gaps\n\n\ndef download_klines(config, data_sources):"
+}

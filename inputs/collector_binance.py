@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 import argparse
 import math, time
@@ -46,6 +47,23 @@ column_types = {
     'ignore': 'float64',
 }
 time_column = 'timestamp'
+def backup_file(file_path, backup_folder):
+    file_path = Path(file_path)
+    backup_folder = Path(backup_folder)
+
+    if not file_path.exists():
+        return None
+
+    backup_folder.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_name = f"{file_path.stem}_{timestamp}{file_path.suffix}"
+    backup_path = backup_folder / backup_name
+
+    shutil.copy2(file_path, backup_path)
+
+    print(f"Backup created: {backup_path}")
+    return backup_path
 
 # Useful functions:
 # Ping the server: https://python-binance.readthedocs.io/en/latest/general.html#id1
@@ -242,6 +260,25 @@ def klines_to_df(klines: list):
 
     return df
 
+def find_candle_gaps(timestamps, pandas_freq):
+    """Return gaps larger than the expected candle interval."""
+    expected_delta = freq_to_timedelta(pandas_freq)
+
+    if expected_delta <= timedelta(0):
+        raise ValueError("Expected candle duration must be positive.")
+
+    timestamps = pd.Series(timestamps).reset_index(drop=True)
+    gaps = []
+
+    for previous, current in zip(timestamps.iloc[:-1], timestamps.iloc[1:]):
+        actual_gap = current - previous
+
+        if actual_gap > expected_delta:
+            gaps.append((previous, current, actual_gap))
+
+    return gaps
+
+
 def download_klines(config, data_sources):
     """
     Retrieving historic klines from binance server.
@@ -254,10 +291,10 @@ def download_klines(config, data_sources):
 
     now = datetime.now()
 
-    freq = config["freq"]  # Pandas frequency
-    print(f"Pandas frequency: {freq}")
+    pandas_freq = config["freq"]
+    print(f"Pandas frequency: {pandas_freq}")
 
-    freq = binance_freq_from_pandas(freq)
+    freq = binance_freq_from_pandas(pandas_freq)
     print(f"Binance frequency: {freq}")
 
     client_args = config.get("client_args", {})
@@ -289,8 +326,13 @@ def download_klines(config, data_sources):
 
         file_name = (file_path / ("futures" if futures else "klines")).with_suffix(".csv")
 
-        # Get a few latest klines to determine the latest available timestamp
+               # Get a few latest klines to determine the latest available timestamp
         latest_klines = client.get_klines(symbol=quote, interval=freq, limit=5)
+
+        if not latest_klines:
+            print(f"WARNING: Binance returned no latest candles for {quote}. Skipping.")
+            continue
+
         latest_ts = pd.to_datetime(latest_klines[-1][0], unit='ms', utc=True)
 
         if file_name.is_file():
@@ -300,8 +342,14 @@ def download_klines(config, data_sources):
             df = df.astype(column_types)
             df = df.set_index('timestamp', inplace=False, drop=False)
 
-            # oldest_point = parser.parse(data["timestamp"].iloc[-1])
-            oldest_point = df["timestamp"].iloc[-5]  # Use an older point so that new data will overwrite old data
+                        # oldest_point = parser.parse(data["timestamp"].iloc[-1])
+            if len(df) >= 5:
+                oldest_point = df["timestamp"].iloc[-5]
+            elif len(df) > 0:
+                oldest_point = df["timestamp"].iloc[0]
+            else:
+                print(f"WARNING: Existing file for {quote} is empty. Skipping.")
+                continue  # Use an older point so that new data will overwrite old data
 
             print(f"File found. Downloaded data for {quote} and {freq} since {str(latest_ts)} will be appended to the existing file {file_name}")
         else:
@@ -326,22 +374,54 @@ def download_klines(config, data_sources):
 
         df_new = klines_to_df(klines)
 
+        if df_new.empty:
+            print(f"WARNING: No historical candles downloaded for {quote}. Skipping.")
+            continue
+
         if df is None:
             df = df_new
         else:
             df = pd.concat([df, df_new])
 
-            # Drop duplicates
-            df = df.drop_duplicates(subset=["timestamp"], keep="last")
-            # df = df[~df.index.duplicated(keep='last')]  # alternatively, drop duplicates in index
+        # Count duplicate timestamps before removing them
+        duplicate_count = df.duplicated(subset=["timestamp"]).sum()
+
+        if duplicate_count:
+            print(f"WARNING: Found {duplicate_count} duplicate timestamps for {quote}.")
+
+        # Remove duplicates, keeping the latest record
+        df = df.drop_duplicates(subset=["timestamp"], keep="last")
+
+        # Sort candles chronologically, oldest to newest
+        df = df.sort_values("timestamp").reset_index(drop=True)
 
         # Remove last row because it represents a non-complete kline (the interval not finished yet)
         df = df.iloc[:-1]
+
+        if df.empty:
+            print(f"WARNING: No complete candles available for {quote}. Keeping existing file unchanged.")
+            continue
 
         # Limit the saved size by only the latest rows
         if download_max_rows:
             df = df.tail(download_max_rows)
 
+        # Check for missing candles using the reusable gap-detection function
+        try:
+            gaps = find_candle_gaps(df["timestamp"], pandas_freq)
+
+            if gaps:
+                print(f"WARNING: Found {len(gaps)} possible missing-candle gaps for {quote}.")
+
+                # Show up to five examples for investigation
+                for previous_timestamp, current_timestamp, actual_gap in gaps[:5]:
+                    print(f"  Gap: {previous_timestamp} to {current_timestamp} ({actual_gap})")
+
+        except (TypeError, ValueError, AttributeError, NotImplementedError) as error:
+            print(f"INFO: Skipping candle-gap check for {pandas_freq}: {error}")
+
+        backup_folder = data_path / "backups" / "market-data" / quote
+        backup_file(file_name, backup_folder)
         df.to_csv(file_name, index=False)
 
         print(f"Finished downloading '{quote}'. Stored {len(df)} rows in '{file_name}'")
