@@ -1,4 +1,5 @@
 import ast
+import csv
 from pathlib import Path
 import click
 from tqdm import tqdm
@@ -31,6 +32,40 @@ than another threshold then sell. There is also a version with two thresholds fo
 - The script consumes the results of signal script but it then varies parameters of one entry
 responsible for generation of trade signals. It then measures performance.
 """
+
+
+def write_simulation_results(performances, out_path):
+    """Append simulation results as a consistent, standards-compliant CSV file."""
+    if not performances:
+        raise ValueError("Cannot write simulation results because there are no performances.")
+
+    fieldnames = (
+        list(performances[0]["model"].keys())
+        + list(performances[0]["performance"].keys())
+    )
+    rows = [
+        {**item["model"], **item["performance"]}
+        for item in performances
+    ]
+
+    has_existing_data = out_path.is_file() and out_path.stat().st_size > 0
+    if has_existing_data:
+        with open(out_path, "r", newline="", encoding="utf-8") as existing_file:
+            existing_header = next(csv.reader(existing_file), None)
+        if existing_header != fieldnames:
+            raise ValueError(
+                f"Existing simulation results in '{out_path}' have different "
+                "columns. Use a new output file or move the old file before "
+                "running simulations with this result format."
+            )
+
+    with open(out_path, "a", newline="", encoding="utf-8") as output_file:
+        writer = csv.DictWriter(output_file, fieldnames=fieldnames)
+        if not has_existing_data:
+            writer.writeheader()
+        writer.writerows(rows)
+
+    return len(rows)
 
 
 @click.command()
@@ -202,37 +237,15 @@ def main(config_file):
     if not performances:
         raise ValueError("The parameter grid produced no simulations. Check the configured threshold lists.")
 
-    # Column names (from one record)
-    keys = list(performances[0]['model'].keys()) + \
-           list(performances[0]['performance'].keys())
-
-    lines = []
-    for p in performances:
-        record = list(p['model'].values()) + \
-                 list(p['performance'].values())
-                 #list(p['long_performance'].values()) + \
-                 #list(p['short_performance'].values())
-        #record = [f"{v:.2f}" if isinstance(v, float) else str(v) for v in record]
-        record_str = ",".join(str(v) for v in record)
-        lines.append(record_str)
-
     #
-    # Store simulation parameters and performance
+    # Store simulation parameters and performance as CSV
     #
     out_file_name = config.get("signal_models_file_name")
     out_path = (data_path / out_file_name).with_suffix(".txt").resolve()
 
-    if out_path.is_file():
-        add_header = False
-    else:
-        add_header = True
-    with open(out_path, "a+") as f:
-        if add_header:
-            f.write(",".join(keys) + "\n")
-        #f.writelines(lines)
-        f.write("\n".join(lines) + "\n\n")
+    lines_written = write_simulation_results(performances, out_path)
 
-    print(f"Simulation results stored in: {out_path}. Lines: {len(lines)}.")
+    print(f"Simulation results stored in: {out_path}. Lines: {lines_written}.")
 
     elapsed = datetime.now() - now
     print(f"Finished simulation in {str(elapsed).split('.')[0]}")
