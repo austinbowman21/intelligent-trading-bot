@@ -166,12 +166,29 @@ def simulated_trade_performance(
             ),
         }
 
-    long_performance["open_position"] = (
-        open_position if position == "long" else None
-    )
-    short_performance["open_position"] = (
-        open_position if position == "short" else None
-    )
+    def add_open_position_fields(performance, include_position):
+        current_position = open_position if include_position else None
+        performance["open_position_side"] = (
+            current_position["side"] if current_position else ""
+        )
+        performance["open_position_entry_price"] = (
+            current_position["entry_price"] if current_position else None
+        )
+        performance["open_position_mark_price"] = (
+            current_position["mark_price"] if current_position else None
+        )
+        performance["open_position_estimated_exit_price"] = (
+            current_position["estimated_exit_price"] if current_position else None
+        )
+        performance["open_position_unrealized_profit"] = (
+            current_position["unrealized_profit"] if current_position else None
+        )
+        performance["open_position_unrealized_profit_percent"] = (
+            current_position["unrealized_profit_percent"] if current_position else None
+        )
+
+    add_open_position_fields(long_performance, position == "long")
+    add_open_position_fields(short_performance, position == "short")
 
     total_transactions = long_transactions + short_transactions
     total_profitable = long_profitable + short_profitable
@@ -190,6 +207,6 @@ def simulated_trade_performance(
     performance["profitable_percent"] = round(
         100.0 * performance["profitable"], 1
     )
-    performance["open_position"] = open_position
+    add_open_position_fields(performance, position is not None)
 
     return performance, long_performance, short_performance
