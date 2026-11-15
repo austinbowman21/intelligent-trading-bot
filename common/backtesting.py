@@ -35,6 +35,7 @@ def simulated_trade_performance(
 
     position = None
     entry_price = None
+    last_valid_price = None
 
     long_profit = 0.0
     long_profit_percent = 0.0
@@ -61,6 +62,8 @@ def simulated_trade_performance(
 
         if not np.isfinite(price) or price <= 0:
             continue
+
+        last_valid_price = price
 
         buy_signal = bool(buy_signal) if pd.notna(buy_signal) else False
         sell_signal = bool(sell_signal) if pd.notna(sell_signal) else False
@@ -138,6 +141,38 @@ def simulated_trade_performance(
         short_profit, short_profit_percent, short_transactions, short_profitable
     )
 
+    # Report any position still open at the end without counting it as a
+    # completed trade. The estimate assumes it is closed at the last valid
+    # observed price, including adverse exit slippage and the exit fee.
+    open_position = None
+    if position is not None and last_valid_price is not None:
+        if position == "long":
+            estimated_exit_price = last_valid_price * (1 - slippage_rate)
+            gross_unrealized_profit = estimated_exit_price - entry_price
+        else:
+            estimated_exit_price = last_valid_price * (1 + slippage_rate)
+            gross_unrealized_profit = entry_price - estimated_exit_price
+
+        estimated_fees = fee_rate * (entry_price + estimated_exit_price)
+        unrealized_profit = gross_unrealized_profit - estimated_fees
+        open_position = {
+            "side": position,
+            "entry_price": round(entry_price, 8),
+            "mark_price": round(last_valid_price, 8),
+            "estimated_exit_price": round(estimated_exit_price, 8),
+            "unrealized_profit": round(unrealized_profit, 2),
+            "unrealized_profit_percent": round(
+                100.0 * unrealized_profit / entry_price, 2
+            ),
+        }
+
+    long_performance["open_position"] = (
+        open_position if position == "long" else None
+    )
+    short_performance["open_position"] = (
+        open_position if position == "short" else None
+    )
+
     total_transactions = long_transactions + short_transactions
     total_profitable = long_profitable + short_profitable
 
@@ -155,5 +190,6 @@ def simulated_trade_performance(
     performance["profitable_percent"] = round(
         100.0 * performance["profitable"], 1
     )
+    performance["open_position"] = open_position
 
     return performance, long_performance, short_performance
