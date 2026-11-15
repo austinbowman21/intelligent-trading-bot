@@ -1,3 +1,4 @@
+import ast
 from pathlib import Path
 import click
 from tqdm import tqdm
@@ -89,6 +90,9 @@ def main(config_file):
 
     df = df.reset_index(drop=True)
 
+    if df.empty:
+        raise ValueError("No data remains after applying the simulation date filters.")
+
     print(f"Input data size {len(df)} records. Range: [{df.iloc[0][time_column]}, {df.iloc[-1][time_column]}]")
 
     #
@@ -104,20 +108,23 @@ def main(config_file):
 
     # Evaluate strings to produce lists with ranges of parameters
     if isinstance(parameter_grid.get("buy_signal_threshold"), str):
-        parameter_grid["buy_signal_threshold"] = eval(parameter_grid.get("buy_signal_threshold"))
+        parameter_grid["buy_signal_threshold"] = ast.literal_eval(parameter_grid.get("buy_signal_threshold"))
     if isinstance(parameter_grid.get("buy_signal_threshold_2"), str):
-        parameter_grid["buy_signal_threshold_2"] = eval(parameter_grid.get("buy_signal_threshold_2"))
+        parameter_grid["buy_signal_threshold_2"] = ast.literal_eval(parameter_grid.get("buy_signal_threshold_2"))
     if isinstance(parameter_grid.get("sell_signal_threshold"), str):
-        parameter_grid["sell_signal_threshold"] = eval(parameter_grid.get("sell_signal_threshold"))
+        parameter_grid["sell_signal_threshold"] = ast.literal_eval(parameter_grid.get("sell_signal_threshold"))
     if isinstance(parameter_grid.get("sell_signal_threshold_2"), str):
-        parameter_grid["sell_signal_threshold_2"] = eval(parameter_grid.get("sell_signal_threshold_2"))
+        parameter_grid["sell_signal_threshold_2"] = ast.literal_eval(parameter_grid.get("sell_signal_threshold_2"))
 
     # If necessary, disable sell parameters in grid search - they will be set from the buy parameters
     if simulate_config.get("buy_sell_equal"):
         parameter_grid["sell_signal_threshold"] = [None]
         parameter_grid["sell_signal_threshold_2"] = [None]
 
-    months_in_simulation = (df[time_column].iloc[-1] - df[time_column].iloc[0]) / timedelta(days=365/12)
+    simulation_duration = df[time_column].iloc[-1] - df[time_column].iloc[0]
+    months_in_simulation = simulation_duration / timedelta(days=365/12)
+    if months_in_simulation <= 0:
+        raise ValueError("Simulation data must cover a positive time period to calculate monthly performance.")
 
     #
     # Find the generator, the parameters of which will be varied
@@ -191,6 +198,9 @@ def main(config_file):
     # Sort
     performances = sorted(performances, key=lambda x: x['performance']['%profit/M'], reverse=True)
     performances = performances[:topn_to_store]
+
+    if not performances:
+        raise ValueError("The parameter grid produced no simulations. Check the configured threshold lists.")
 
     # Column names (from one record)
     keys = list(performances[0]['model'].keys()) + \
