@@ -82,9 +82,9 @@ def test_open_long_position_is_reported_separately():
 
     assert performance["#transactions"] == 0
     assert performance["profit"] == 0.0
-    assert long_performance["open_position"]["side"] == "long"
-    assert long_performance["open_position"]["unrealized_profit"] == 10.0
-    assert short_performance["open_position"] is None
+    assert long_performance["open_position_side"] == "long"
+    assert long_performance["open_position_unrealized_profit"] == 10.0
+    assert short_performance["open_position_side"] == ""
 
 
 def test_open_short_position_is_reported_separately():
@@ -100,9 +100,9 @@ def test_open_short_position_is_reported_separately():
 
     assert performance["#transactions"] == 0
     assert performance["profit"] == 0.0
-    assert short_performance["open_position"]["side"] == "short"
-    assert short_performance["open_position"]["unrealized_profit"] == 10.0
-    assert long_performance["open_position"] is None
+    assert short_performance["open_position_side"] == "short"
+    assert short_performance["open_position_unrealized_profit"] == 10.0
+    assert long_performance["open_position_side"] == ""
 
 
 def test_open_long_position_estimate_includes_fees_and_slippage():
@@ -118,6 +118,6 @@ def test_open_long_position_estimate_includes_fees_and_slippage():
         )
     )
 
-    assert long_performance["open_position"]["unrealized_profit"] == 9.58
-    assert long_performance["open_position"]["estimated_exit_price"] == 109.89
+    assert long_performance["open_position_unrealized_profit"] == 9.58
+    assert long_performance["open_position_estimated_exit_price"] == 109.89
     assert performance["#transactions"] == 0
