@@ -99,6 +99,8 @@ def main(config_file):
     if direction not in ['long', 'short']:
         raise ValueError(f"Unknown value of {direction} in signal train model. Only 'long' or 'short' are possible.")
     topn_to_store = simulate_config.get("topn_to_store", 10)
+    fee_rate = simulate_config.get("fee_rate", 0.0)
+    slippage_rate = simulate_config.get("slippage_rate", 0.0)
 
     # Evaluate strings to produce lists with ranges of parameters
     if isinstance(parameter_grid.get("buy_signal_threshold"), str):
@@ -162,8 +164,10 @@ def main(config_file):
         buy_signal_column,
         sell_signal_column,
         'close',
-        direction=direction
-)
+        direction=direction,
+        fee_rate=fee_rate,
+        slippage_rate=slippage_rate,
+    )
         if direction == "long":
             performance = long_performance
         elif direction == "short":
