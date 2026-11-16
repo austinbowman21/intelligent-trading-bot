@@ -58,3 +58,63 @@ def test_interval_and_aggregation():
     interval_df = find_interval_precision(df, label_column='is_close_top', score_column='score_agg', threshold=threshold)
 
     pass
+
+
+def test_crossing_threshold_requires_complete_future_window():
+    from common.utils import first_location_of_crossing_threshold
+
+    df = pd.DataFrame({
+        "close": [100.0, 100.0, 100.0, 100.0, 100.0],
+        "high": [101.0, np.nan, 104.0, 101.0, 101.0],
+    })
+
+    result = first_location_of_crossing_threshold(df, 4, 3, "close", "high")
+
+    # The missing first future candle makes the first-cross location unknowable.
+    assert pd.isna(result.iloc[0])
+    # A complete window with no crossing is also represented as NaN.
+    assert pd.isna(result.iloc[1])
+
+
+def test_first_cross_label_marks_missing_future_candle_unknown():
+    from common.gen_labels_highlow import first_cross_labels
+
+    df = pd.DataFrame({
+        "close": [100.0] * 5,
+        "high": [101.0, np.nan, 104.0, 101.0, 101.0],
+        "low": [99.0] * 5,
+    })
+
+    first_cross_labels(df, 4, [3.0, -0.6], "close", ["high", "low"], "high_30")
+
+    assert pd.isna(df.loc[0, "high_30"])
+
+
+def test_first_cross_label_marks_same_candle_tie_unknown():
+    from common.gen_labels_highlow import first_cross_labels
+
+    df = pd.DataFrame({
+        "close": [100.0, 100.0, 100.0],
+        "high": [100.0, 104.0, 100.0],
+        "low": [100.0, 99.0, 100.0],
+    })
+
+    first_cross_labels(df, 2, [3.0, -0.6], "close", ["high", "low"], "high_30")
+
+    assert pd.isna(df.loc[0, "high_30"])
+
+
+def test_first_cross_label_marks_incomplete_tail_unknown():
+    from common.gen_labels_highlow import first_cross_labels
+
+    df = pd.DataFrame({
+        "close": [100.0] * 5,
+        "high": [101.0] * 5,
+        "low": [99.0] * 5,
+    })
+
+    first_cross_labels(df, 2, [3.0, -0.6], "close", ["high", "low"], "high_30")
+
+    assert pd.notna(df.loc[0, "high_30"])
+    assert pd.isna(df.loc[3, "high_30"])
+    assert pd.isna(df.loc[4, "high_30"])
