@@ -2,7 +2,7 @@
     "train": true,  // If true (offline) then models will be trained before use and more data will be processed. Use false for predict only (online) mode with only latest data
     "venue": "binance",
 
-    //"client_args": {"tld": "us"},
+    "client_args": {"tld": "us"},
     "api_key": "<binance-key>",
     "api_secret": "<binance-secret>",
 
