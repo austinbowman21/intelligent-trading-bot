@@ -141,16 +141,34 @@ def first_cross_labels(df, horizon, thresholds, close_column, price_columns, out
     # Low label - find first (forward) index like +6 of the value lower than threshold. Or 0/nan if not found within window
     df["second_idx_column"] = first_location_of_crossing_threshold(df, horizon, thresholds[1], close_column, price_columns[1])
 
-    # The final value is chosen from these two whichever is smaller (as absolute value), that is, closer to this point
-    def is_high_true(x):
-        if np.isnan(x[0]):
-            return False
-        elif np.isnan(x[1]):
-            return True
-        else:
-            return x[0] <= x[1]  # If the first cross point is closer to this point than the second one
+    # A label is valid only when the reference candle and every future candle
+    # have complete OHLC values. Otherwise the first crossing is unknowable.
+    valid_rows = df[[close_column, price_columns[0], price_columns[1]]].notna().all(axis=1)
+    valid_windows = (
+        valid_rows.astype(int)
+        .rolling(horizon + 1, min_periods=horizon + 1)
+        .sum()
+        .shift(-horizon)
+        .eq(horizon + 1)
+    )
 
-    df[out_column] = df[["first_idx_column", "second_idx_column"]].apply(is_high_true, raw=True, axis=1)
+    first = df["first_idx_column"]
+    second = df["second_idx_column"]
+
+    # Unknown data stays NaN. If both thresholds first cross on the same candle,
+    # their order cannot be determined from OHLC data, so that label is also NaN.
+    result = pd.Series(np.nan, index=df.index, dtype="float64")
+    known = valid_windows
+    first_missing = first.isna()
+    second_missing = second.isna()
+
+    result.loc[known & first_missing] = False
+    result.loc[known & ~first_missing & second_missing] = True
+
+    ordered = known & ~first_missing & ~second_missing & first.ne(second)
+    result.loc[ordered] = first.loc[ordered] < second.loc[ordered]
+
+    df[out_column] = result
 
     # Indexes are not needed anymore
     df.drop(columns=['first_idx_column', 'second_idx_column'], inplace=True)
