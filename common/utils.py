@@ -562,7 +562,11 @@ def first_location_of_crossing_threshold(df, horizon, threshold, close_column_na
         return idx
 
     # Window df will include the current row as well as horizon of past rows with 0 index starting from the oldest row and last index with the current row
-    rl = df[[close_column_name, price_column_name]].rolling(horizon + 1, min_periods=(horizon // 2), method='table')
+    # Require every close/price value in the full current + future window.
+    # A partial window or a missing candle cannot establish the first crossing.
+    rl = df[[close_column_name, price_column_name]].rolling(
+        horizon + 1, min_periods=(horizon + 1) * 2, method='table'
+    )
 
     if threshold > 0:
         df_out = rl.apply(fn_high, raw=True, engine='numba')
