@@ -393,7 +393,8 @@ def download_klines(config, data_sources):
         df = df.drop_duplicates(subset=["timestamp"], keep="last")
 
         # Sort candles chronologically, oldest to newest
-        df = df.sort_values("timestamp").reset_index(drop=True)
+        # Drop the timestamp index before sorting; timestamp is also a column.
+        df = df.reset_index(drop=True).sort_values("timestamp").reset_index(drop=True)
 
         # Remove last row because it represents a non-complete kline (the interval not finished yet)
         df = df.iloc[:-1]
