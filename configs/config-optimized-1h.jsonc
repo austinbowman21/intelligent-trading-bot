@@ -34,7 +34,9 @@
     "feature_sets": [
         {"column_prefix": "", "generator": "talib", "feature_prefix": "", "config":  {"columns": ["close"], "functions": ["SMA"], "windows": [1, 3, 6, 12, 24, 168, 672]}},
         {"column_prefix": "", "generator": "talib", "feature_prefix": "", "config":  {"columns": ["close"], "functions": ["LINEARREG_SLOPE"], "windows": [3, 6, 12, 24, 168, 672]}},
-        {"column_prefix": "", "generator": "talib", "feature_prefix": "", "config":  {"columns": ["close"], "functions": ["STDDEV"], "windows": [3, 6, 12, 24, 168, 672]}}
+        {"column_prefix": "", "generator": "talib", "feature_prefix": "", "config":  {"columns": ["close"], "functions": ["STDDEV"], "windows": [3, 6, 12, 24, 168, 672]}},
+        {"column_prefix": "", "generator": "talib", "feature_prefix": "", "config":  {"columns": ["close"], "functions": ["RSI"], "windows": [14]}},
+        {"column_prefix": "", "generator": "talib", "feature_prefix": "", "config":  {"columns": {"high": "high", "low": "low", "close": "close"}, "functions": ["NATR"], "windows": [14]}}
     ],
 
     // === LABELS ===
@@ -49,7 +51,8 @@
     "train_features": [
         "close_SMA_1", "close_SMA_3", "close_SMA_6", "close_SMA_12", "close_SMA_24", "close_SMA_168",
         "close_LINEARREG_SLOPE_3", "close_LINEARREG_SLOPE_6", "close_LINEARREG_SLOPE_12", "close_LINEARREG_SLOPE_24", "close_LINEARREG_SLOPE_168",
-        "close_STDDEV_3", "close_STDDEV_6", "close_STDDEV_12", "close_STDDEV_24", "close_STDDEV_168"
+        "close_STDDEV_3", "close_STDDEV_6", "close_STDDEV_12", "close_STDDEV_24", "close_STDDEV_168",
+        "close_RSI_14", "high_low_close_NATR_14"
     ],
 
     "labels": ["high_30", "low_30"],
