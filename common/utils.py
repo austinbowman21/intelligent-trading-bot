@@ -536,7 +536,7 @@ def first_location_of_crossing_threshold(df, horizon, threshold, close_column_na
     """
 
     def fn_high(x):
-        if len(x) < 2:
+        if len(x) < horizon + 1 or not np.isfinite(x).all():
             return np.nan
         p = x[0, 0]  # Reference price
         p_threshold = p*(1+(threshold/100.0))  # Cross line
@@ -549,7 +549,7 @@ def first_location_of_crossing_threshold(df, horizon, threshold, close_column_na
         return idx
 
     def fn_low(x):
-        if len(x) < 2:
+        if len(x) < horizon + 1 or not np.isfinite(x).all():
             return np.nan
         p = x[0, 0]  # Reference price
         p_threshold = p*(1+(threshold/100.0))  # Cross line
@@ -561,11 +561,12 @@ def first_location_of_crossing_threshold(df, horizon, threshold, close_column_na
             return np.nan
         return idx
 
-    # Window df will include the current row as well as horizon of past rows with 0 index starting from the oldest row and last index with the current row
-    # Require every close/price value in the full current + future window.
-    # A partial window or a missing candle cannot establish the first crossing.
+    # Window df will include the current row as well as horizon of past rows with 0 index starting from the oldest row and last index with the current row.
+    # Require a complete window and reject it if either input column has any missing value.
+    # min_periods cannot exceed the number of rows in the rolling window; the callback
+    # checks all values because pandas counts observations by row for this window.
     rl = df[[close_column_name, price_column_name]].rolling(
-        horizon + 1, min_periods=(horizon + 1) * 2, method='table'
+        horizon + 1, min_periods=horizon + 1, method='table'
     )
 
     if threshold > 0:
