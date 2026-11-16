@@ -65,7 +65,7 @@
         {
           "name": "svc",
           "algo": "svc",
-          "params": {"is_scale": true, "length": 26280}, // 3 years 26280 hours, 5 years 43800 hours
+          "params": {"is_scale": true, "length": 2000}, // 3 years 26280 hours, 5 years 43800 hours
           "train": {"C": 1.0}
         }
     ],
