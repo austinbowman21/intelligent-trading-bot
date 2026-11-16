@@ -162,11 +162,11 @@ def first_cross_labels(df, horizon, thresholds, close_column, price_columns, out
     first_missing = first.isna()
     second_missing = second.isna()
 
-    result.loc[known & first_missing] = False
-    result.loc[known & ~first_missing & second_missing] = True
+    result.loc[known & first_missing] = 0.0
+    result.loc[known & ~first_missing & second_missing] = 1.0
 
     ordered = known & ~first_missing & ~second_missing & first.ne(second)
-    result.loc[ordered] = first.loc[ordered] < second.loc[ordered]
+    result.loc[ordered] = (first.loc[ordered] < second.loc[ordered]).astype(float)
 
     df[out_column] = result
 
